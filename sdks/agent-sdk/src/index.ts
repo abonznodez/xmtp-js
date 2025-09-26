@@ -22,3 +22,4 @@ export type * from "@xmtp/node-sdk";
 // Agent SDK
 export * from "./core/index.js";
 export * from "./utils/filter.js";
+export * from "./utils/nameResolver.js";

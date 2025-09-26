@@ -279,15 +279,76 @@ agent.on("text", async (ctx) => {
 These functionalities let you start a conversation:
 
 ```ts
-// Direct Message
-const dm = await agent.createDmWithAddress("0x123");
+// Direct Message with Base name resolution
+const dm = await agent.createDmWithAddress("bennycode.base.eth");
 await dm.send("Hello!");
 
-// Group Conversation
-const group = await agent.createGroupWithAddresses(["0x123", "0x456"]);
-await group.addMembers(["0x789"]);
+// Works with ENS names too
+const ensDm = await agent.createDmWithAddress("vitalik.eth");
+await ensDm.send("Hi from ENS!");
+
+// Traditional Ethereum addresses still work
+const addressDm = await agent.createDmWithAddress("0x123");
+await addressDm.send("Hello address!");
+
+// Group Conversation with mixed name types
+const group = await agent.createGroupWithAddresses([
+  "alice.base.eth",
+  "bob.eth",
+  "0x456",
+]);
+await group.addMembers(["charlie.base.eth"]);
 await group.send("Hello group!");
 ```
+
+#### Name Resolution
+
+The Agent SDK supports automatic resolution of:
+
+- **Base names** (e.g., `username.base.eth`)
+- **ENS names** (e.g., `username.eth`)
+- **Ethereum addresses** (e.g., `0x123...abc`)
+
+Names are resolved using the web3.bio API. If resolution fails, the methods will throw an `AgentError` with details about which names couldn't be resolved.
+
+```ts
+import { resolveName } from "@xmtp/agent-sdk";
+
+// You can also resolve names manually
+const result = await resolveName("bennycode.base.eth");
+if (result.address) {
+  console.log(`Resolved to: ${result.address}`);
+  console.log(`Platform: ${result.platform}`); // "basenames"
+  console.log(`Display name: ${result.displayName}`); // "bennycode.base.eth"
+}
+```
+
+#### NameResolver Middleware
+
+For automatic name resolution in messages, use the `NameResolver` middleware:
+
+```ts
+import { Agent, NameResolver } from "@xmtp/agent-sdk";
+
+const agent = await Agent.createFromEnv();
+
+// Create middleware with options
+const nameResolver = new NameResolver({
+  autoResolve: true, // Auto-resolve @mentions
+  replyWithResolution: true, // Reply with resolved addresses
+  onNameResolved: (ctx, name, resolution) => {
+    console.log(`Resolved: @${name} → ${resolution.address}`);
+  },
+});
+
+// Add middleware to agent
+agent.use(nameResolver.middleware());
+
+// Now messages like "Hello @alice.base.eth!" will automatically
+// resolve the Base name and trigger your custom handler
+```
+
+The middleware automatically detects and resolves names in messages when they are prefixed with `@` (e.g., `@alice.base.eth`, `@vitalik.eth`, `@0x123...`).
 
 ## Adding Custom Content Types
 

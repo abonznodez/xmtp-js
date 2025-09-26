@@ -20,6 +20,7 @@ import {
 import { fromString } from "uint8arrays/from-string";
 import { isHex } from "viem/utils";
 import { filter } from "@/utils/filter.js";
+import { resolveName } from "@/utils/nameResolver.js";
 import { createSigner, createUser } from "@/utils/user.js";
 import { AgentError } from "./AgentError.js";
 import { ClientContext } from "./ClientContext.js";
@@ -414,26 +415,66 @@ export class Agent<ContentTypes = unknown> extends EventEmitter<
     this.#isLocked = false;
   }
 
-  createDmWithAddress(address: `0x${string}`, options?: CreateDmOptions) {
+  /**
+   * Creates a DM conversation with the given address or name
+   * Supports Ethereum addresses, ENS names, and Base names
+   *
+   * @param addressOrName - Can be an Ethereum address (0x...), ENS name (.eth), or Base name (.base.eth)
+   * @param options - Optional DM creation options
+   * @returns Promise that resolves with the new DM conversation
+   */
+  async createDmWithAddress(addressOrName: string, options?: CreateDmOptions) {
+    const resolved = await resolveName(addressOrName);
+
+    if (!resolved.address) {
+      throw new AgentError(
+        2001,
+        `Unable to resolve "${addressOrName}" to a valid Ethereum address. Please check that the name is correct and try again.`,
+      );
+    }
+
     return this.#client.conversations.newDmWithIdentifier(
       {
-        identifier: address,
+        identifier: resolved.address,
         identifierKind: IdentifierKind.Ethereum,
       },
       options,
     );
   }
 
-  createGroupWithAddresses(
-    addresses: `0x${string}`[],
+  /**
+   * Creates a group conversation with the given addresses or names
+   * Supports Ethereum addresses, ENS names, and Base names
+   *
+   * @param addressesOrNames - Array of addresses or names to add to the group
+   * @param options - Optional group creation options
+   * @returns Promise that resolves with the new group conversation
+   */
+  async createGroupWithAddresses(
+    addressesOrNames: string[],
     options?: CreateGroupOptions,
   ) {
-    const identifiers = addresses.map((address) => {
+    const resolved = await Promise.all(addressesOrNames.map(resolveName));
+
+    const invalidInputs = resolved
+      .map((result, index) => ({ result, input: addressesOrNames[index] }))
+      .filter(({ result }) => !result.address)
+      .map(({ input }) => input);
+
+    if (invalidInputs.length > 0) {
+      throw new AgentError(
+        2002,
+        `Unable to resolve the following to valid Ethereum addresses: ${invalidInputs.join(", ")}. Please check that the names are correct and try again.`,
+      );
+    }
+
+    const identifiers = resolved.map((result) => {
       return {
-        identifier: address,
+        identifier: result.address!,
         identifierKind: IdentifierKind.Ethereum,
       };
     });
+
     return this.#client.conversations.newGroupWithIdentifiers(
       identifiers,
       options,
