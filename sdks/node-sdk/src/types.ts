@@ -25,6 +25,14 @@ export type NetworkOptions = {
    * specific endpoint for syncing history
    */
   historySyncUrl?: string | null;
+  /**
+   * The host of the XMTP Gateway for your application
+   *
+   * Only valid for `testnet` and `mainnet` environments
+   *
+   * @see:https://docs.xmtp.org/fund-agents-apps/run-gateway
+   */
+  gatewayHost?: string;
 };
 
 /**
